@@ -20,6 +20,7 @@ type singleton struct {
 
 	FFMPEGPath  string
 	FFProbePath string
+	NicePath string
 }
 
 var instance *singleton
@@ -122,7 +123,7 @@ func initEnvs() {
 
 func initFFMPEG() {
 	configDirectory := paths.GetConfigDirectory()
-	ffmpegPath, ffprobePath := ffmpeg.GetPaths(configDirectory)
+	ffmpegPath, ffprobePath, nicePath := ffmpeg.GetPaths(configDirectory)
 	if ffmpegPath == "" || ffprobePath == "" {
 		logger.Infof("couldn't find FFMPEG, attempting to download it")
 		if err := ffmpeg.Download(configDirectory); err != nil {
@@ -134,12 +135,15 @@ The FFMPEG and FFProbe binaries should be placed in %s
 The error was: %s
 `
 			logger.Fatalf(msg, configDirectory, err)
+		} else {
+			// After download get new paths for ffmpeg and ffprobe
+			ffmpegPath, ffprobePath, nicePath = ffmpeg.GetPaths(configDirectory)
 		}
 	}
 
-	// TODO: is this valid after download?
 	instance.FFMPEGPath = ffmpegPath
 	instance.FFProbePath = ffprobePath
+	instance.NicePath = nicePath
 }
 
 func initLog() {

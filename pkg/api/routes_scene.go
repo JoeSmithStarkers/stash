@@ -87,7 +87,7 @@ func (rs sceneRoutes) Stream(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	startTime := r.Form.Get("start")
 
-	encoder := ffmpeg.NewEncoder(manager.GetInstance().FFMPEGPath)
+	encoder := ffmpeg.NewEncoder(manager.GetInstance().FFMPEGPath, "")
 
 	var stream io.ReadCloser
 	var process *os.Process

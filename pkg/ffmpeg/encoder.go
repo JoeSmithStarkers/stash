@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"os/exec"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 type Encoder struct {
 	Path string
+	NicePath string
 }
 
 var (
@@ -22,9 +24,10 @@ var (
 	runningEncodersMutex = sync.RWMutex{}
 )
 
-func NewEncoder(ffmpegPath string) Encoder {
+func NewEncoder(ffmpegPath string, nicePath string) Encoder {
 	return Encoder{
 		Path: ffmpegPath,
+		NicePath: nicePath,
 	}
 }
 
@@ -84,7 +87,23 @@ func KillRunningEncoders(path string) {
 }
 
 func (e *Encoder) run(probeResult VideoFile, args []string) (string, error) {
-	cmd := exec.Command(e.Path, args...)
+	var cmd *exec.Cmd
+
+	if e.NicePath != "" {
+		niceArgs := []string {
+			"-n",
+			fmt.Sprintf("%d", rand.Intn(19)),
+			e.Path,
+		}
+
+		finalArgs := append(niceArgs, args...)
+
+		logger.Debug("Encoder Command Line: " + e.NicePath + " " + strings.Join(finalArgs, " "))
+		cmd = exec.Command(e.NicePath, finalArgs...)
+	} else {
+		logger.Debug("Encoder Command Line: " + e.Path + " " + strings.Join(args, " "))
+		cmd = exec.Command(e.Path, args...)
+	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
@@ -105,6 +124,7 @@ func (e *Encoder) run(probeResult VideoFile, args []string) (string, error) {
 	for {
 		n, err := stderr.Read(buf)
 		if n > 0 {
+			logger.Debug("FFMPEG(stderr):" + string(buf[0:n]))
 			data := string(buf[0:n])
 			time := GetTimeFromRegex(data)
 			if time > 0 && probeResult.Duration > 0 {
@@ -121,6 +141,9 @@ func (e *Encoder) run(probeResult VideoFile, args []string) (string, error) {
 
 	stdoutData, _ := ioutil.ReadAll(stdout)
 	stdoutString := string(stdoutData)
+	if stdoutString != "" {
+		logger.Debug("FFMPEG(stdout):" + stdoutString)
+	}
 
 	registerRunningEncoder(probeResult.Path, cmd.Process)
 	err = waitAndDeregister(probeResult.Path, cmd)

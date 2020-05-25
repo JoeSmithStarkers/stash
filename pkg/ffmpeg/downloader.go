@@ -14,13 +14,14 @@ import (
 	"strings"
 )
 
-func GetPaths(configDirectory string) (string, string) {
-	var ffmpegPath, ffprobePath string
+func GetPaths(configDirectory string) (string, string, string) {
+	var ffmpegPath, ffprobePath, nicePath string
 
 	// Check if ffmpeg exists in the PATH
 	if pathBinaryHasCorrectFlags() {
 		ffmpegPath, _ = exec.LookPath("ffmpeg")
 		ffprobePath, _ = exec.LookPath("ffprobe")
+		nicePath, _ = exec.LookPath("nice")
 	}
 
 	// Check if ffmpeg exists in the config directory
@@ -35,7 +36,7 @@ func GetPaths(configDirectory string) (string, string) {
 		ffprobePath = ffprobeConfigPath
 	}
 
-	return ffmpegPath, ffprobePath
+	return ffmpegPath, ffprobePath, nicePath
 }
 
 func Download(configDirectory string) error {

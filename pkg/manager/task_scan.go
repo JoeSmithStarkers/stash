@@ -6,26 +6,45 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
-
 	"github.com/stashapp/stash/pkg/database"
 	"github.com/stashapp/stash/pkg/ffmpeg"
 	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/models"
 	"github.com/stashapp/stash/pkg/utils"
+	"github.com/remeh/sizedwaitgroup"
 )
 
 type ScanTask struct {
 	FilePath        string
 	UseFileMetadata bool
+	GenerateSprint  bool
+	GeneratePreview bool
 }
 
-func (t *ScanTask) Start(wg *sync.WaitGroup) {
+func (t *ScanTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 	if isGallery(t.FilePath) {
 		t.scanGallery()
 	} else {
-		t.scanScene()
+		scene := t.scanScene()
+
+		if scene != nil {
+			iwg := sizedwaitgroup.New(2)
+
+			if t.GenerateSprint {
+				iwg.Add()
+				taskSprite := GenerateSpriteTask{Scene: *scene}
+				go taskSprite.Start(&iwg)
+			}
+
+			if t.GeneratePreview {
+				iwg.Add()
+				taskPreview := GeneratePreviewTask{Scene: *scene}
+				go taskPreview.Start(&iwg)
+			}
+
+			iwg.Wait()
+		}
 	}
 
 	wg.Done()
@@ -85,7 +104,7 @@ func (t *ScanTask) scanGallery() {
 }
 
 // associates a gallery to a scene with the same basename
-func (t *ScanTask) associateGallery(wg *sync.WaitGroup) {
+func (t *ScanTask) associateGallery(wg *sizedwaitgroup.SizedWaitGroup) {
 	qb := models.NewGalleryQueryBuilder()
 	gallery, _ := qb.FindByPath(t.FilePath)
 	if gallery == nil {
@@ -134,7 +153,7 @@ func (t *ScanTask) associateGallery(wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func (t *ScanTask) scanScene() {
+func (t *ScanTask) scanScene() *models.Scene {
 	qb := models.NewSceneQueryBuilder()
 	scene, _ := qb.FindByPath(t.FilePath)
 	if scene != nil {
@@ -147,7 +166,7 @@ func (t *ScanTask) scanScene() {
 			videoFile, err := ffmpeg.NewVideoFile(instance.FFProbePath, t.FilePath)
 			if err != nil {
 				logger.Error(err.Error())
-				return
+				return nil
 			}
 			container := ffmpeg.MatchContainer(videoFile.Container, t.FilePath)
 			logger.Infof("Adding container %s to file %s", container, t.FilePath)
@@ -163,13 +182,13 @@ func (t *ScanTask) scanScene() {
 			}
 
 		}
-		return
+		return nil
 	}
 
 	videoFile, err := ffmpeg.NewVideoFile(instance.FFProbePath, t.FilePath)
 	if err != nil {
 		logger.Error(err.Error())
-		return
+		return nil
 	}
 	container := ffmpeg.MatchContainer(videoFile.Container, t.FilePath)
 
@@ -181,11 +200,12 @@ func (t *ScanTask) scanScene() {
 	checksum, err := t.calculateChecksum()
 	if err != nil {
 		logger.Error(err.Error())
-		return
+		return nil
 	}
 
 	t.makeScreenshots(videoFile, checksum)
 
+	var new_scene *models.Scene
 	scene, _ = qb.FindByChecksum(checksum)
 	ctx := context.TODO()
 	tx := database.DB.MustBeginTx(ctx, nil)
@@ -225,15 +245,21 @@ func (t *ScanTask) scanScene() {
 			newScene.Details = sql.NullString{String: videoFile.Comment, Valid: true}
 			newScene.Date = models.SQLiteDate{String: videoFile.CreationTime.Format("2006-01-02")}
 		}
-		_, err = qb.Create(newScene, tx)
+
+		new_scene, err = qb.Create(newScene, tx)
 	}
 
 	if err != nil {
 		logger.Error(err.Error())
 		_ = tx.Rollback()
+		return nil
+
 	} else if err := tx.Commit(); err != nil {
 		logger.Error(err.Error())
+		return nil
 	}
+
+	return new_scene
 }
 
 func (t *ScanTask) makeScreenshots(probeResult *ffmpeg.VideoFile, checksum string) {

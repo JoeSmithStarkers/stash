@@ -25,6 +25,8 @@ func (e *Encoder) ScenePreviewVideoChunk(probeResult VideoFile, options ScenePre
 		"-pix_fmt", "yuv420p",
 		"-profile:v", "high",
 		"-level", "4.2",
+		"-movflags", "+faststart",
+		"-pix_fmt", "yuv420p",
 		"-preset", "slow",
 		"-crf", "21",
 		"-threads", "4",

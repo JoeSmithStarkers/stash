@@ -1,22 +1,20 @@
 package manager
 
 import (
-	"os"
-	"path/filepath"
-	"strconv"
-	"sync"
-
+	"github.com/remeh/sizedwaitgroup"
 	"github.com/stashapp/stash/pkg/ffmpeg"
 	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/models"
 	"github.com/stashapp/stash/pkg/utils"
+	"path/filepath"
+	"strconv"
 )
 
 type GenerateMarkersTask struct {
 	Scene models.Scene
 }
 
-func (t *GenerateMarkersTask) Start(wg *sync.WaitGroup) {
+func (t *GenerateMarkersTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 	defer wg.Done()
 
 	qb := models.NewSceneMarkerQueryBuilder()
@@ -35,7 +33,7 @@ func (t *GenerateMarkersTask) Start(wg *sync.WaitGroup) {
 	markersFolder := filepath.Join(instance.Paths.Generated.Markers, t.Scene.Checksum)
 	_ = utils.EnsureDir(markersFolder)
 
-	encoder := ffmpeg.NewEncoder(instance.FFMPEGPath)
+	encoder := ffmpeg.NewEncoder(instance.FFMPEGPath, instance.NicePath)
 	for i, sceneMarker := range sceneMarkers {
 		index := i + 1
 		logger.Progressf("[generator] <%s> scene marker %d of %d", t.Scene.Checksum, index, len(sceneMarkers))
@@ -59,7 +57,7 @@ func (t *GenerateMarkersTask) Start(wg *sync.WaitGroup) {
 			if err := encoder.SceneMarkerVideo(*videoFile, options); err != nil {
 				logger.Errorf("[generator] failed to generate marker video: %s", err)
 			} else {
-				_ = os.Rename(options.OutputPath, videoPath)
+				_ = utils.SafeMove(options.OutputPath, videoPath)
 				logger.Debug("created marker video: ", videoPath)
 			}
 		}
@@ -69,7 +67,7 @@ func (t *GenerateMarkersTask) Start(wg *sync.WaitGroup) {
 			if err := encoder.SceneMarkerImage(*videoFile, options); err != nil {
 				logger.Errorf("[generator] failed to generate marker image: %s", err)
 			} else {
-				_ = os.Rename(options.OutputPath, imagePath)
+				_ = utils.SafeMove(options.OutputPath, imagePath)
 				logger.Debug("created marker image: ", videoPath)
 			}
 		}

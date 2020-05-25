@@ -1,18 +1,18 @@
 package manager
 
 import (
+	"github.com/remeh/sizedwaitgroup"
 	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/manager/paths"
 	"github.com/stashapp/stash/pkg/models"
 	"github.com/stashapp/stash/pkg/utils"
-	"sync"
 )
 
 type GenerateGthumbsTask struct {
 	Gallery models.Gallery
 }
 
-func (t *GenerateGthumbsTask) Start(wg *sync.WaitGroup) {
+func (t *GenerateGthumbsTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 	defer wg.Done()
 	generated := 0
 	count := t.Gallery.ImageCount()

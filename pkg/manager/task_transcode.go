@@ -1,20 +1,19 @@
 package manager
 
 import (
-	"os"
-	"sync"
-
+	"github.com/remeh/sizedwaitgroup"
 	"github.com/stashapp/stash/pkg/ffmpeg"
 	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/manager/config"
 	"github.com/stashapp/stash/pkg/models"
+	"github.com/stashapp/stash/pkg/utils"
 )
 
 type GenerateTranscodeTask struct {
 	Scene models.Scene
 }
 
-func (t *GenerateTranscodeTask) Start(wg *sync.WaitGroup) {
+func (t *GenerateTranscodeTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 	defer wg.Done()
 
 	hasTranscode, _ := HasTranscode(&t.Scene)
@@ -60,7 +59,7 @@ func (t *GenerateTranscodeTask) Start(wg *sync.WaitGroup) {
 		OutputPath:       outputPath,
 		MaxTranscodeSize: transcodeSize,
 	}
-	encoder := ffmpeg.NewEncoder(instance.FFMPEGPath)
+	encoder := ffmpeg.NewEncoder(instance.FFMPEGPath, instance.NicePath)
 
 	if videoCodec == ffmpeg.H264 { // for non supported h264 files stream copy the video part
 		if audioCodec == ffmpeg.MissingUnsupported {
@@ -77,7 +76,7 @@ func (t *GenerateTranscodeTask) Start(wg *sync.WaitGroup) {
 		}
 	}
 
-	if err := os.Rename(outputPath, instance.Paths.Scene.GetTranscodePath(t.Scene.Checksum)); err != nil {
+	if err := utils.SafeMove(outputPath, instance.Paths.Scene.GetTranscodePath(t.Scene.Checksum)); err != nil {
 		logger.Errorf("[transcode] error generating transcode: %s", err.Error())
 		return
 	}

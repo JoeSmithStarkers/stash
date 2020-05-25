@@ -11,6 +11,7 @@ import (
 	"image/color"
 	"io/ioutil"
 	"math"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -18,13 +19,14 @@ import (
 type SpriteGenerator struct {
 	Info *GeneratorInfo
 
+	VideoChecksum	string
 	ImageOutputPath string
 	VTTOutputPath   string
 	Rows            int
 	Columns         int
 }
 
-func NewSpriteGenerator(videoFile ffmpeg.VideoFile, imageOutputPath string, vttOutputPath string, rows int, cols int) (*SpriteGenerator, error) {
+func NewSpriteGenerator(videoFile ffmpeg.VideoFile, videoChecksum string, imageOutputPath string, vttOutputPath string, rows int, cols int) (*SpriteGenerator, error) {
 	exists, err := utils.FileExists(videoFile.Path)
 	if !exists {
 		return nil, err
@@ -40,6 +42,7 @@ func NewSpriteGenerator(videoFile ffmpeg.VideoFile, imageOutputPath string, vttO
 
 	return &SpriteGenerator{
 		Info:            generator,
+		VideoChecksum:   videoChecksum,
 		ImageOutputPath: imageOutputPath,
 		VTTOutputPath:   vttOutputPath,
 		Rows:            rows,
@@ -48,7 +51,7 @@ func NewSpriteGenerator(videoFile ffmpeg.VideoFile, imageOutputPath string, vttO
 }
 
 func (g *SpriteGenerator) Generate() error {
-	encoder := ffmpeg.NewEncoder(instance.FFMPEGPath)
+	encoder := ffmpeg.NewEncoder(instance.FFMPEGPath, instance.NicePath)
 
 	if err := g.generateSpriteImage(&encoder); err != nil {
 		return err
@@ -70,7 +73,7 @@ func (g *SpriteGenerator) generateSpriteImage(encoder *ffmpeg.Encoder) error {
 	for i := 0; i < g.Info.ChunkCount; i++ {
 		time := float64(i) * stepSize
 		num := fmt.Sprintf("%.3d", i)
-		filename := "thumbnail" + num + ".jpg"
+		filename := "thumbnail_" + g.VideoChecksum + "_" + num + ".jpg"
 
 		options := ffmpeg.ScreenshotOptions{
 			OutputPath: instance.Paths.Generated.GetTmpPath(filename),
@@ -81,7 +84,7 @@ func (g *SpriteGenerator) generateSpriteImage(encoder *ffmpeg.Encoder) error {
 	}
 
 	// Combine all of the thumbnails into a sprite image
-	globPath := filepath.Join(instance.Paths.Generated.Tmp, "thumbnail*.jpg")
+	globPath := filepath.Join(instance.Paths.Generated.Tmp, fmt.Sprintf("thumbnail_%s_*.jpg", g.VideoChecksum))
 	imagePaths, _ := doublestar.Glob(globPath)
 	utils.NaturalSort(imagePaths)
 	var images []image.Image
@@ -117,13 +120,15 @@ func (g *SpriteGenerator) generateSpriteVTT(encoder *ffmpeg.Encoder) error {
 	}
 	logger.Infof("[generator] generating sprite vtt for %s", g.Info.VideoFile.Path)
 
-	spriteImage, err := imaging.Open(g.ImageOutputPath)
+	file, err := os.Open(g.ImageOutputPath)
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 	spriteImageName := filepath.Base(g.ImageOutputPath)
-	width := spriteImage.Bounds().Size().X / g.Columns
-	height := spriteImage.Bounds().Size().Y / g.Rows
+	image, _, err := image.DecodeConfig(file)
+	width := image.Width / g.Columns
+	height := image.Height  / g.Rows
 
 	stepSize := float64(g.Info.NthFrame) / g.Info.FrameRate
 

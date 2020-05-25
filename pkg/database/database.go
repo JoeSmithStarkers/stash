@@ -109,6 +109,7 @@ func Backup(backupPath string) error {
 }
 
 func RestoreFromBackup(backupPath string) error {
+	// TODO: should rename/move the backup, a restore operation should leave the backup intact.
 	return os.Rename(backupPath, dbPath)
 }
 

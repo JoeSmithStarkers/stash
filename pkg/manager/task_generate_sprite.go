@@ -5,17 +5,18 @@ import (
 	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/models"
 	"github.com/stashapp/stash/pkg/utils"
-	"sync"
+	"github.com/remeh/sizedwaitgroup"
 )
 
 type GenerateSpriteTask struct {
 	Scene models.Scene
 }
 
-func (t *GenerateSpriteTask) Start(wg *sync.WaitGroup) {
+func (t *GenerateSpriteTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 	defer wg.Done()
 
-	if t.doesSpriteExist(t.Scene.Checksum) {
+	videoChecksum := t.Scene.Checksum
+	if t.doesSpriteExist(videoChecksum) {
 		return
 	}
 
@@ -25,9 +26,9 @@ func (t *GenerateSpriteTask) Start(wg *sync.WaitGroup) {
 		return
 	}
 
-	imagePath := instance.Paths.Scene.GetSpriteImageFilePath(t.Scene.Checksum)
-	vttPath := instance.Paths.Scene.GetSpriteVttFilePath(t.Scene.Checksum)
-	generator, err := NewSpriteGenerator(*videoFile, imagePath, vttPath, 9, 9)
+	imagePath := instance.Paths.Scene.GetSpriteImageFilePath(videoChecksum)
+	vttPath := instance.Paths.Scene.GetSpriteVttFilePath(videoChecksum)
+	generator, err := NewSpriteGenerator(*videoFile, videoChecksum, imagePath, vttPath, 9, 9)
 	if err != nil {
 		logger.Errorf("error creating sprite generator: %s", err.Error())
 		return

@@ -5,19 +5,20 @@ import (
 	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/models"
 	"github.com/stashapp/stash/pkg/utils"
-	"sync"
+	"github.com/remeh/sizedwaitgroup"
 )
 
 type GeneratePreviewTask struct {
 	Scene models.Scene
 }
 
-func (t *GeneratePreviewTask) Start(wg *sync.WaitGroup) {
+func (t *GeneratePreviewTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 	defer wg.Done()
 
 	videoFilename := t.videoFilename()
+	videoChecksum := t.Scene.Checksum
 	imageFilename := t.imageFilename()
-	if t.doesPreviewExist(t.Scene.Checksum) {
+	if t.doesPreviewExist(videoChecksum) {
 		return
 	}
 
@@ -27,7 +28,7 @@ func (t *GeneratePreviewTask) Start(wg *sync.WaitGroup) {
 		return
 	}
 
-	generator, err := NewPreviewGenerator(*videoFile, videoFilename, imageFilename, instance.Paths.Generated.Screenshots)
+	generator, err := NewPreviewGenerator(*videoFile, videoChecksum, videoFilename, imageFilename, instance.Paths.Generated.Screenshots)
 	if err != nil {
 		logger.Errorf("error creating preview generator: %s", err.Error())
 		return

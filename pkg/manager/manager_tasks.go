@@ -1,16 +1,18 @@
 package manager
 
 import (
+	"fmt"
+	"github.com/stashapp/stash/pkg/utils"
 	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
-
+	"runtime"
 	"github.com/bmatcuk/doublestar"
+	"github.com/remeh/sizedwaitgroup"
 	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/manager/config"
 	"github.com/stashapp/stash/pkg/models"
-	"github.com/stashapp/stash/pkg/utils"
 )
 
 var extensionsToScan = []string{"zip", "m4v", "mp4", "mov", "wmv", "avi", "mpg", "mpeg", "rmvb", "rm", "flv", "asf", "mkv", "webm"}
@@ -96,7 +98,13 @@ func (s *singleton) Scan(useFileMetadata bool) {
 		for _, path := range config.GetStashPaths() {
 			globPath := filepath.Join(path, "**/*."+constructGlob())
 			globResults, _ := doublestar.Glob(globPath)
-			results = append(results, globResults...)
+
+			for _, globCheck := range globResults {
+				// Remove results that are directories (directories with extensions...)
+				if isDir, _ := utils.DirExists(globCheck) ; !isDir {
+					results = append(results, globCheck)
+				}
+			}
 		}
 
 		if s.Status.stopping {
@@ -108,7 +116,8 @@ func (s *singleton) Scan(useFileMetadata bool) {
 		total := len(results)
 		logger.Infof("Starting scan of %d files. %d New files found", total, s.neededScan(results))
 
-		var wg sync.WaitGroup
+		start := time.Now()
+		wg := sizedwaitgroup.New(runtime.NumCPU()) 		// TODO: This should be a configuration option
 		s.Status.Progress = 0
 		for i, path := range results {
 			s.Status.setProgress(i, total)
@@ -116,16 +125,22 @@ func (s *singleton) Scan(useFileMetadata bool) {
 				logger.Info("Stopping due to user request")
 				return
 			}
-			wg.Add(1)
-			task := ScanTask{FilePath: path, UseFileMetadata: useFileMetadata}
-			go task.Start(&wg)
-			wg.Wait()
-		}
 
-		logger.Info("Finished scan")
+			instance.Paths.Generated.EnsureTmpDir()
+
+			wg.Add()
+			// TODO: GenerateSprite & GeneratePreview both should be GUI options.
+			task := ScanTask{FilePath: path, UseFileMetadata: useFileMetadata, GeneratePreview: true, GenerateSprint: true}
+			go task.Start(&wg)
+		}
+		wg.Wait()
+		instance.Paths.Generated.EmptyTmpDir()
+
+		elapsed := time.Since(start)
+		logger.Info(fmt.Sprintf("Scan finished (%s)", elapsed))
 		for _, path := range results {
 			if isGallery(path) {
-				wg.Add(1)
+				wg.Add()
 				task := ScanTask{FilePath: path, UseFileMetadata: false}
 				go task.associateGallery(&wg)
 				wg.Wait()
@@ -194,8 +209,8 @@ func (s *singleton) Generate(sprites bool, previews bool, markers bool, transcod
 			return
 		}
 
-		delta := utils.Btoi(sprites) + utils.Btoi(previews) + utils.Btoi(markers) + utils.Btoi(transcodes)
-		var wg sync.WaitGroup
+		wg := sizedwaitgroup.New(runtime.NumCPU())		// TODO: This should be a configuration option
+
 		s.Status.Progress = 0
 		lenScenes := len(scenes)
 		total := lenScenes
@@ -219,6 +234,10 @@ func (s *singleton) Generate(sprites bool, previews bool, markers bool, transcod
 		} else {
 			logger.Infof("Generating %d sprites %d previews %d markers %d transcodes", totalsNeeded.sprites, totalsNeeded.previews, totalsNeeded.markers, totalsNeeded.transcodes)
 		}
+
+		start := time.Now()
+		instance.Paths.Generated.EnsureTmpDir()
+
 		for i, scene := range scenes {
 			s.Status.setProgress(i, total)
 			if s.Status.stopping {
@@ -231,35 +250,32 @@ func (s *singleton) Generate(sprites bool, previews bool, markers bool, transcod
 				continue
 			}
 
-			wg.Add(delta)
-
-			// Clear the tmp directory for each scene
-			if sprites || previews || markers {
-				instance.Paths.Generated.EmptyTmpDir()
-			}
-
 			if sprites {
 				task := GenerateSpriteTask{Scene: *scene}
+				wg.Add()
 				go task.Start(&wg)
 			}
 
 			if previews {
 				task := GeneratePreviewTask{Scene: *scene}
+				wg.Add()
 				go task.Start(&wg)
 			}
 
 			if markers {
 				task := GenerateMarkersTask{Scene: *scene}
+				wg.Add()
 				go task.Start(&wg)
 			}
 
 			if transcodes {
 				task := GenerateTranscodeTask{Scene: *scene}
+				wg.Add()
 				go task.Start(&wg)
 			}
-
-			wg.Wait()
 		}
+
+		wg.Wait()
 
 		if thumbnails {
 			logger.Infof("Generating thumbnails for the galleries")
@@ -275,14 +291,17 @@ func (s *singleton) Generate(sprites bool, previews bool, markers bool, transcod
 					continue
 				}
 
-				wg.Add(1)
+				wg.Add()
 				task := GenerateGthumbsTask{Gallery: *gallery}
 				go task.Start(&wg)
-				wg.Wait()
 			}
 		}
 
-		logger.Infof("Generate finished")
+		wg.Wait()
+
+		instance.Paths.Generated.EmptyTmpDir()
+		elapsed := time.Since(start)
+		logger.Info(fmt.Sprintf("Generate finished (%s)", elapsed))
 	}()
 }
 
