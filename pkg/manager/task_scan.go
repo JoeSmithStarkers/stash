@@ -39,7 +39,8 @@ func (t *ScanTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 
 			if t.GeneratePreview {
 				iwg.Add()
-				taskPreview := GeneratePreviewTask{Scene: *scene}
+				taskPreview := GeneratePreviewTask{Scene: *scene,
+					ImagePreview: true, PreviewPreset: string(models.PreviewPresetSlow)} // TODO: Determine ImagePreview/PreviewPreset
 				go taskPreview.Start(&iwg)
 			}
 
