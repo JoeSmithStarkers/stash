@@ -11,14 +11,14 @@ DARWIN="echo '=== Building OSX binary ==='; GOOS=darwin GOARCH=amd64 CC=o64-clan
 LINUX="echo '=== Building Linux binary ==='; go build -o dist/stash-linux -ldflags \"$VERSION_FLAGS\" -v -mod=vendor;"
 RASPPI="echo '=== Building Raspberry Pi binary ==='; GOOS=linux GOARCH=arm GOARM=5 CC=arm-linux-gnueabi-gcc go build -o dist/stash-pi -ldflags \"$VERSION_FLAGS\" -v -mod=vendor;"
 
+# if build target ends with -fast then use prebuilt packr2. eg linux-fast or all-fast
 if [ `echo "$1" | cut -d - -f 2` == "fast" ]
 then
   echo "Building without Packr2"
   SETUP=$SETUP_FAST
 fi
 
-BUILD=`echo linux | cut -d - -f 1`
-
+BUILD=`echo "$1" | cut -d - -f 1`
 if [ "$BUILD" == "windows" ]
 then
   echo "Building Windows"
