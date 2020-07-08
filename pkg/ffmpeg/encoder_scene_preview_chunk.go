@@ -13,12 +13,43 @@ type ScenePreviewChunkOptions struct {
 	OutputPath string
 }
 
-func (e *Encoder) ScenePreviewVideoChunk(probeResult VideoFile, options ScenePreviewChunkOptions, preset string) {
+func (e *Encoder) ScenePreviewVideoChunk(probeResult VideoFile, options ScenePreviewChunkOptions, preset string, fallback bool) error {
+	fallbackMinSlowSeek := 20
+	fastSeek := options.Time
+	slowSeek := 0
+
 	args := []string{
 		"-v", "error",
-		"-xerror",
-		"-ss", strconv.Itoa(options.Time),
-		"-i", probeResult.Path,
+	}
+
+	// Not fallback: enable xerror
+	if !fallback {
+		args = append(args, "-xerror")
+	} else {
+		// Fallback try a combination of fast/slow seek instead of only fastseek
+		if fastSeek > fallbackMinSlowSeek {
+			fastSeek = fastSeek - fallbackMinSlowSeek
+			slowSeek = fallbackMinSlowSeek
+		} else {
+			slowSeek = fastSeek
+			fastSeek = 0
+		}
+	}
+
+	if fastSeek > 0 {
+		args = append(args, "-ss")
+		args = append(args, strconv.Itoa(fastSeek))
+	}
+
+	args = append(args, "-i")
+	args = append(args, probeResult.Path)
+
+	if slowSeek > 0 {
+		args = append(args, "-ss")
+		args = append(args, strconv.Itoa(slowSeek))
+	}
+
+	args2 := []string{
 		"-t", "0.75",
 		"-max_muxing_queue_size", "1024", // https://trac.ffmpeg.org/ticket/6375
 		"-y",
@@ -37,10 +68,14 @@ func (e *Encoder) ScenePreviewVideoChunk(probeResult VideoFile, options ScenePre
 		"-strict", "-2",
 		options.OutputPath,
 	}
-	_, _ = e.run(probeResult, args)
+
+	finalArgs := append(args, args2...)
+
+	_, err := e.run(probeResult, finalArgs)
+	return err
 }
 
-func (e *Encoder) ScenePreviewVideoChunkCombine(probeResult VideoFile, concatFilePath string, outputPath string) {
+func (e *Encoder) ScenePreviewVideoChunkCombine(probeResult VideoFile, concatFilePath string, outputPath string) error {
 	args := []string{
 		"-v", "error",
 		"-f", "concat",
@@ -49,7 +84,8 @@ func (e *Encoder) ScenePreviewVideoChunkCombine(probeResult VideoFile, concatFil
 		"-c", "copy",
 		outputPath,
 	}
-	_, _ = e.run(probeResult, args)
+	_, err := e.run(probeResult, args)
+	return err
 }
 
 func (e *Encoder) ScenePreviewVideoToImage(probeResult VideoFile, width int, videoPreviewPath string, outputPath string) error {
