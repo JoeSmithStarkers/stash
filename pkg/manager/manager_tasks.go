@@ -5,6 +5,7 @@ import (
 	"github.com/stashapp/stash/pkg/utils"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 	"runtime"
@@ -19,22 +20,17 @@ var extensionsToScan = []string{"zip", "m4v", "mp4", "mov", "wmv", "avi", "mpg",
 var extensionsGallery = []string{"zip"}
 
 func constructGlob() string { // create a sequence for glob doublestar from our extensions
-	extLen := len(extensionsToScan)
-	glb := "{"
-	for i := 0; i < extLen-1; i++ { // append extensions and commas
-		glb += extensionsToScan[i] + ","
+	var extList []string
+	for _, ext := range extensionsToScan {
+		extList = append(extList, strings.ToLower(ext))
+		extList = append(extList, strings.ToUpper(ext))
 	}
-	if extLen >= 1 { // append last extension without comma
-		glb += extensionsToScan[extLen-1]
-	}
-	glb += "}"
-	return glb
-
+	return "{" + strings.Join(extList, ",") + "}"
 }
 
 func isGallery(pathname string) bool {
 	for _, ext := range extensionsGallery {
-		if filepath.Ext(pathname) == "."+ext {
+		if strings.ToLower(filepath.Ext(pathname)) == "."+strings.ToLower(ext) {
 			return true
 		}
 	}
