@@ -9,9 +9,12 @@ import (
 )
 
 type GeneratePreviewTask struct {
-	Scene         models.Scene
-	ImagePreview  bool
-	PreviewPreset string
+	Scene        models.Scene
+	ImagePreview bool
+
+	Options models.GeneratePreviewOptionsInput
+
+	Overwrite bool
 }
 
 func (t *GeneratePreviewTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
@@ -22,7 +25,7 @@ func (t *GeneratePreviewTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 	imageFilename := t.imageFilename()
 	videoExists := t.doesVideoPreviewExist(videoChecksum)
 
-	if (!t.ImagePreview || t.doesImagePreviewExist(videoChecksum)) && videoExists {
+	if !t.Overwrite && ((!t.ImagePreview || t.doesImagePreviewExist(videoChecksum)) && videoExists) {
 		return
 	}
 
@@ -32,11 +35,18 @@ func (t *GeneratePreviewTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 		return
 	}
 
-	generator, err := NewPreviewGenerator(*videoFile, videoChecksum, videoFilename, imageFilename, instance.Paths.Generated.Screenshots, !videoExists, t.ImagePreview, t.PreviewPreset)
+	generator, err := NewPreviewGenerator(*videoFile, videoChecksum, videoFilename, imageFilename, instance.Paths.Generated.Screenshots, true, t.ImagePreview, t.Options.PreviewPreset.String())
 	if err != nil {
 		logger.Errorf("error creating preview generator: %s", err.Error())
 		return
 	}
+	generator.Overwrite = t.Overwrite
+
+	// set the preview generation configuration from the global config
+	generator.Info.ChunkCount = *t.Options.PreviewSegments
+	generator.Info.ChunkDuration = *t.Options.PreviewSegmentDuration
+	generator.Info.ExcludeStart = *t.Options.PreviewExcludeStart
+	generator.Info.ExcludeEnd = *t.Options.PreviewExcludeEnd
 
 	if err := generator.Generate(); err != nil {
 		logger.Errorf("error generating preview: %s", err.Error())

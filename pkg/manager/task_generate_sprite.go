@@ -9,14 +9,15 @@ import (
 )
 
 type GenerateSpriteTask struct {
-	Scene models.Scene
+	Scene     models.Scene
+	Overwrite bool
 }
 
 func (t *GenerateSpriteTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 	defer wg.Done()
 
 	videoChecksum := t.Scene.Checksum
-	if t.doesSpriteExist(videoChecksum) {
+	if t.doesSpriteExist(videoChecksum) && !t.Overwrite {
 		return
 	}
 
@@ -33,6 +34,7 @@ func (t *GenerateSpriteTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 		logger.Errorf("error creating sprite generator: %s", err.Error())
 		return
 	}
+	generator.Overwrite = t.Overwrite
 
 	if err := generator.Generate(); err != nil {
 		logger.Errorf("error generating sprite: %s", err.Error())

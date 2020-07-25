@@ -10,6 +10,7 @@ import (
 	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/manager/config"
 	"github.com/stashapp/stash/pkg/manager/paths"
+	"github.com/stashapp/stash/pkg/scraper"
 	"github.com/stashapp/stash/pkg/utils"
 )
 
@@ -21,6 +22,8 @@ type singleton struct {
 	FFMPEGPath  string
 	FFProbePath string
 	NicePath string
+
+	ScraperCache *scraper.Cache
 }
 
 var instance *singleton
@@ -48,6 +51,8 @@ func Initialize() *singleton {
 			Status: TaskStatus{Status: Idle, Progress: -1},
 			Paths:  paths.NewPaths(),
 			JSON:   &jsonUtils{},
+
+			ScraperCache: initScraperCache(),
 		}
 
 		instance.RefreshConfig()
@@ -76,6 +81,8 @@ func initConfig() {
 		}
 	}
 	logger.Infof("using config file: %s", viper.ConfigFileUsed())
+
+	config.SetInitialConfig()
 
 	viper.SetDefault(config.Database, paths.GetDefaultDatabaseFilePath())
 
@@ -148,6 +155,20 @@ The error was: %s
 
 func initLog() {
 	logger.Init(config.GetLogFile(), config.GetLogOut(), config.GetLogLevel())
+}
+
+func initScraperCache() *scraper.Cache {
+	scraperConfig := scraper.GlobalConfig{
+		Path:      config.GetScrapersPath(),
+		UserAgent: config.GetScraperUserAgent(),
+	}
+	ret, err := scraper.NewCache(scraperConfig)
+
+	if err != nil {
+		logger.Errorf("Error reading scraper configs: %s", err.Error())
+	}
+
+	return ret
 }
 
 func (s *singleton) RefreshConfig() {

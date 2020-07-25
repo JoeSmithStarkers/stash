@@ -3,15 +3,17 @@ package utils
 import (
 	"archive/zip"
 	"fmt"
-	"github.com/h2non/filetype"
-	"github.com/h2non/filetype/types"
-	"github.com/stashapp/stash/pkg/logger"
 	"io"
 	"io/ioutil"
 	"math"
+	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
+
+	"github.com/h2non/filetype"
+	"github.com/h2non/filetype/types"
+	"github.com/stashapp/stash/pkg/logger"
 )
 
 // FileType uses the filetype package to determine the given file path's type
@@ -257,4 +259,12 @@ func GetParent(path string) *string {
 		parentPath := filepath.Clean(path + "/..")
 		return &parentPath
 	}
+}
+
+// ServeFileNoCache serves the provided file, ensuring that the response
+// contains headers to prevent caching.
+func ServeFileNoCache(w http.ResponseWriter, r *http.Request, filepath string) {
+	w.Header().Add("Cache-Control", "no-cache")
+
+	http.ServeFile(w, r, filepath)
 }

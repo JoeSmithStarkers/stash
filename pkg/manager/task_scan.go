@@ -10,6 +10,7 @@ import (
 	"github.com/stashapp/stash/pkg/database"
 	"github.com/stashapp/stash/pkg/ffmpeg"
 	"github.com/stashapp/stash/pkg/logger"
+	"github.com/stashapp/stash/pkg/manager/config"
 	"github.com/stashapp/stash/pkg/models"
 	"github.com/stashapp/stash/pkg/utils"
 	"github.com/remeh/sizedwaitgroup"
@@ -39,8 +40,28 @@ func (t *ScanTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 
 			if t.GeneratePreview {
 				iwg.Add()
-				taskPreview := GeneratePreviewTask{Scene: *scene,
-					ImagePreview: true, PreviewPreset: string(models.PreviewPresetSlow)} // TODO: Determine ImagePreview/PreviewPreset
+
+				var previewSegmentDuration = config.GetPreviewSegmentDuration()
+				var previewSegments = config.GetPreviewSegments()
+				var previewExcludeStart = config.GetPreviewExcludeStart()
+				var previewExcludeEnd = config.GetPreviewExcludeEnd()
+				var previewPresent = config.GetPreviewPreset()
+
+				// NOTE: the reuse of this model like this is painful.
+				previewOptions := models.GeneratePreviewOptionsInput{
+					PreviewSegments:        &previewSegments,
+					PreviewSegmentDuration: &previewSegmentDuration,
+					PreviewExcludeStart:    &previewExcludeStart,
+					PreviewExcludeEnd:      &previewExcludeEnd,
+					PreviewPreset:          &previewPresent,
+				}
+
+				taskPreview := GeneratePreviewTask{
+					Scene:        *scene,
+					ImagePreview: true,					// TODO: Determine ImagePreview/PreviewPreset
+					Options:      previewOptions,
+					Overwrite:    false,
+				}
 				go taskPreview.Start(&iwg)
 			}
 

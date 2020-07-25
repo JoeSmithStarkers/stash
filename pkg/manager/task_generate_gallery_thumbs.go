@@ -9,7 +9,8 @@ import (
 )
 
 type GenerateGthumbsTask struct {
-	Gallery models.Gallery
+	Gallery   models.Gallery
+	Overwrite bool
 }
 
 func (t *GenerateGthumbsTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
@@ -19,7 +20,7 @@ func (t *GenerateGthumbsTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 	for i := 0; i < count; i++ {
 		thumbPath := paths.GetGthumbPath(t.Gallery.Checksum, i, models.DefaultGthumbWidth)
 		exists, _ := utils.FileExists(thumbPath)
-		if exists {
+		if !t.Overwrite && exists {
 			continue
 		}
 		data := t.Gallery.GetThumbnail(i, models.DefaultGthumbWidth)

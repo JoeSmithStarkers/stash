@@ -8,15 +8,16 @@ import (
 )
 
 type ScenePreviewChunkOptions struct {
-	Time       int
+	StartTime  float64
+	Duration   float64
 	Width      int
 	OutputPath string
 }
 
 func (e *Encoder) ScenePreviewVideoChunk(probeResult VideoFile, options ScenePreviewChunkOptions, preset string, fallback bool) error {
-	fallbackMinSlowSeek := 20
-	fastSeek := options.Time
-	slowSeek := 0
+	fallbackMinSlowSeek := 20.0
+	fastSeek := options.StartTime
+	slowSeek := 0.0
 
 	args := []string{
 		"-v", "error",
@@ -38,7 +39,7 @@ func (e *Encoder) ScenePreviewVideoChunk(probeResult VideoFile, options ScenePre
 
 	if fastSeek > 0 {
 		args = append(args, "-ss")
-		args = append(args, strconv.Itoa(fastSeek))
+		args = append(args, strconv.FormatFloat(fastSeek, 'f', 2, 64))
 	}
 
 	args = append(args, "-i")
@@ -46,11 +47,11 @@ func (e *Encoder) ScenePreviewVideoChunk(probeResult VideoFile, options ScenePre
 
 	if slowSeek > 0 {
 		args = append(args, "-ss")
-		args = append(args, strconv.Itoa(slowSeek))
+		args = append(args, strconv.FormatFloat(slowSeek, 'f', 2, 64))
 	}
 
 	args2 := []string{
-		"-t", "0.75",
+		"-t", strconv.FormatFloat(options.Duration, 'f', 2, 64),
 		"-max_muxing_queue_size", "1024", // https://trac.ffmpeg.org/ticket/6375
 		"-y",
 		"-c:v", "libx264",

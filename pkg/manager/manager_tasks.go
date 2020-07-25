@@ -182,7 +182,34 @@ func (s *singleton) Export() {
 	}()
 }
 
-func (s *singleton) Generate(sprites bool, previews bool, previewPreset *models.PreviewPreset, imagePreviews bool, markers bool, transcodes bool, thumbnails bool) {
+func setGeneratePreviewOptionsInput(optionsInput *models.GeneratePreviewOptionsInput) {
+	if optionsInput.PreviewSegments == nil {
+		val := config.GetPreviewSegments()
+		optionsInput.PreviewSegments = &val
+	}
+
+	if optionsInput.PreviewSegmentDuration == nil {
+		val := config.GetPreviewSegmentDuration()
+		optionsInput.PreviewSegmentDuration = &val
+	}
+
+	if optionsInput.PreviewExcludeStart == nil {
+		val := config.GetPreviewExcludeStart()
+		optionsInput.PreviewExcludeStart = &val
+	}
+
+	if optionsInput.PreviewExcludeEnd == nil {
+		val := config.GetPreviewExcludeEnd()
+		optionsInput.PreviewExcludeEnd = &val
+	}
+
+	if optionsInput.PreviewPreset == nil {
+		val := config.GetPreviewPreset()
+		optionsInput.PreviewPreset = &val
+	}
+}
+
+func (s *singleton) Generate(input models.GenerateMetadataInput) {
 	if s.Status.Status != Idle {
 		return
 	}
@@ -191,19 +218,26 @@ func (s *singleton) Generate(sprites bool, previews bool, previewPreset *models.
 
 	qb := models.NewSceneQueryBuilder()
 	qg := models.NewGalleryQueryBuilder()
+	mqb := models.NewSceneMarkerQueryBuilder()
+
 	//this.job.total = await ObjectionUtils.getCount(Scene);
 	instance.Paths.Generated.EnsureTmpDir()
 
-	preset := string(models.PreviewPresetSlow)
-	if previewPreset != nil && previewPreset.IsValid() {
-		preset = string(*previewPreset)
-	}
+	galleryIDs := utils.StringSliceToIntSlice(input.GalleryIDs)
+	sceneIDs := utils.StringSliceToIntSlice(input.SceneIDs)
+	markerIDs := utils.StringSliceToIntSlice(input.MarkerIDs)
 
 	go func() {
 		defer s.returnToIdleState()
 
-		scenes, err := qb.All()
-		var galleries []*models.Gallery
+		var scenes []*models.Scene
+		var err error
+
+		if len(sceneIDs) > 0 {
+			scenes, err = qb.FindMany(sceneIDs)
+		} else {
+			scenes, err = qb.All()
+		}
 
 		if err != nil {
 			logger.Errorf("failed to get scenes for generate")
@@ -215,8 +249,15 @@ func (s *singleton) Generate(sprites bool, previews bool, previewPreset *models.
 		s.Status.Progress = 0
 		lenScenes := len(scenes)
 		total := lenScenes
-		if thumbnails {
-			galleries, err = qg.All()
+
+		var galleries []*models.Gallery
+		if input.Thumbnails {
+			if len(galleryIDs) > 0 {
+				galleries, err = qg.FindMany(galleryIDs)
+			} else {
+				galleries, err = qg.All()
+			}
+
 			if err != nil {
 				logger.Errorf("failed to get galleries for generate")
 				return
@@ -224,11 +265,19 @@ func (s *singleton) Generate(sprites bool, previews bool, previewPreset *models.
 			total += len(galleries)
 		}
 
+		var markers []*models.SceneMarker
+		if len(markerIDs) > 0 {
+			markers, err = mqb.FindMany(markerIDs)
+
+			total += len(markers)
+		}
+
 		if s.Status.stopping {
 			logger.Info("Stopping due to user request")
 			return
 		}
-		totalsNeeded := s.neededGenerate(scenes, sprites, previews, imagePreviews, markers, transcodes)
+
+		totalsNeeded := s.neededGenerate(scenes, input)
 		if totalsNeeded == nil {
 			logger.Infof("Taking too long to count content. Skipping...")
 			logger.Infof("Generating content")
@@ -236,6 +285,18 @@ func (s *singleton) Generate(sprites bool, previews bool, previewPreset *models.
 			logger.Infof("Generating %d sprites %d previews %d image previews %d markers %d transcodes", totalsNeeded.sprites, totalsNeeded.previews, totalsNeeded.imagePreviews, totalsNeeded.markers, totalsNeeded.transcodes)
 		}
 
+		overwrite := false
+		if input.Overwrite != nil {
+			overwrite = *input.Overwrite
+		}
+
+		generatePreviewOptions := input.PreviewOptions
+		if generatePreviewOptions == nil {
+			generatePreviewOptions = &models.GeneratePreviewOptionsInput{}
+		}
+		setGeneratePreviewOptionsInput(generatePreviewOptions)
+
+		// Start measuring how long the scan has taken. (consider moving this up)
 		start := time.Now()
 		instance.Paths.Generated.EnsureTmpDir()
 
@@ -251,26 +312,31 @@ func (s *singleton) Generate(sprites bool, previews bool, previewPreset *models.
 				continue
 			}
 
-			if sprites {
-				task := GenerateSpriteTask{Scene: *scene}
+			if input.Sprites {
+				task := GenerateSpriteTask{Scene: *scene, Overwrite: overwrite}
 				wg.Add()
 				go task.Start(&wg)
 			}
 
-			if previews {
-				task := GeneratePreviewTask{Scene: *scene, ImagePreview: imagePreviews, PreviewPreset: preset}
+			if input.Previews {
+				task := GeneratePreviewTask{
+					Scene:        *scene,
+					ImagePreview: input.ImagePreviews,
+					Options:      *generatePreviewOptions,
+					Overwrite:    overwrite,
+				}
 				wg.Add()
 				go task.Start(&wg)
 			}
 
-			if markers {
-				task := GenerateMarkersTask{Scene: *scene}
+			if input.Markers {
+				task := GenerateMarkersTask{Scene: scene, Overwrite: overwrite}
 				wg.Add()
 				go task.Start(&wg)
 			}
 
-			if transcodes {
-				task := GenerateTranscodeTask{Scene: *scene}
+			if input.Transcodes {
+				task := GenerateTranscodeTask{Scene: *scene, Overwrite: overwrite}
 				wg.Add()
 				go task.Start(&wg)
 			}
@@ -278,7 +344,7 @@ func (s *singleton) Generate(sprites bool, previews bool, previewPreset *models.
 
 		wg.Wait()
 
-		if thumbnails {
+		if input.Thumbnails {
 			logger.Infof("Generating thumbnails for the galleries")
 			for i, gallery := range galleries {
 				s.Status.setProgress(lenScenes+i, total)
@@ -293,9 +359,29 @@ func (s *singleton) Generate(sprites bool, previews bool, previewPreset *models.
 				}
 
 				wg.Add()
-				task := GenerateGthumbsTask{Gallery: *gallery}
+				task := GenerateGthumbsTask{Gallery: *gallery, Overwrite: overwrite}
 				go task.Start(&wg)
 			}
+		}
+
+		wg.Wait()
+
+		for i, marker := range markers {
+			s.Status.setProgress(lenScenes+len(galleries)+i, total)
+			if s.Status.stopping {
+				logger.Info("Stopping due to user request")
+				return
+			}
+
+			if marker == nil {
+				logger.Errorf("nil marker, skipping generate")
+				continue
+			}
+
+			wg.Add()
+			task := GenerateMarkersTask{Marker: marker, Overwrite: overwrite}
+			go task.Start(&wg)
+			wg.Wait() // TODO check the safety of this operation in parallel with itself
 		}
 
 		wg.Wait()
@@ -629,7 +715,7 @@ type totalsGenerate struct {
 	transcodes    int64
 }
 
-func (s *singleton) neededGenerate(scenes []*models.Scene, sprites, previews, imagePreviews, markers, transcodes bool) *totalsGenerate {
+func (s *singleton) neededGenerate(scenes []*models.Scene, input models.GenerateMetadataInput) *totalsGenerate {
 
 	var totals totalsGenerate
 	const timeout = 90 * time.Second
@@ -643,33 +729,38 @@ func (s *singleton) neededGenerate(scenes []*models.Scene, sprites, previews, im
 		chTimeout <- struct{}{}
 	}()
 
+	overwrite := false
+	if input.Overwrite != nil {
+		overwrite = *input.Overwrite
+	}
+
 	logger.Infof("Counting content to generate...")
 	for _, scene := range scenes {
 		if scene != nil {
-			if sprites {
+			if input.Sprites {
 				task := GenerateSpriteTask{Scene: *scene}
-				if !task.doesSpriteExist(task.Scene.Checksum) {
+				if overwrite || !task.doesSpriteExist(task.Scene.Checksum) {
 					totals.sprites++
 				}
 			}
 
-			if previews {
-				task := GeneratePreviewTask{Scene: *scene, ImagePreview: imagePreviews}
-				if !task.doesVideoPreviewExist(task.Scene.Checksum) {
+			if input.Previews {
+				task := GeneratePreviewTask{Scene: *scene, ImagePreview: input.ImagePreviews}
+				if overwrite || !task.doesVideoPreviewExist(task.Scene.Checksum) {
 					totals.previews++
 				}
-				if imagePreviews && !task.doesImagePreviewExist(task.Scene.Checksum) {
+				if input.ImagePreviews && (overwrite || !task.doesImagePreviewExist(task.Scene.Checksum)) {
 					totals.imagePreviews++
 				}
 			}
 
-			if markers {
-				task := GenerateMarkersTask{Scene: *scene}
+			if input.Markers {
+				task := GenerateMarkersTask{Scene: scene, Overwrite: overwrite}
 				totals.markers += int64(task.isMarkerNeeded())
-
 			}
-			if transcodes {
-				task := GenerateTranscodeTask{Scene: *scene}
+
+			if input.Transcodes {
+				task := GenerateTranscodeTask{Scene: *scene, Overwrite: overwrite}
 				if task.isTranscodeNeeded() {
 					totals.transcodes++
 				}
