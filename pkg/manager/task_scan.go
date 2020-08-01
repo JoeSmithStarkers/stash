@@ -19,7 +19,7 @@ import (
 type ScanTask struct {
 	FilePath        string
 	UseFileMetadata bool
-	GenerateSprint  bool
+	GenerateSprite  bool
 	GeneratePreview bool
 }
 
@@ -32,7 +32,7 @@ func (t *ScanTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 		if scene != nil {
 			iwg := sizedwaitgroup.New(2)
 
-			if t.GenerateSprint {
+			if t.GenerateSprite {
 				iwg.Add()
 				taskSprite := GenerateSpriteTask{Scene: *scene}
 				go taskSprite.Start(&iwg)

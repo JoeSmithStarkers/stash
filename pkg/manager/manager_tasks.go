@@ -126,7 +126,7 @@ func (s *singleton) Scan(useFileMetadata bool) {
 
 			wg.Add()
 			// TODO: GenerateSprite & GeneratePreview both should be GUI options.
-			task := ScanTask{FilePath: path, UseFileMetadata: useFileMetadata, GeneratePreview: true, GenerateSprint: true}
+			task := ScanTask{FilePath: path, UseFileMetadata: useFileMetadata, GeneratePreview: true, GenerateSprite: true}
 			go task.Start(&wg)
 		}
 		wg.Wait()
