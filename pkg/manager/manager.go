@@ -157,10 +157,12 @@ func initLog() {
 	logger.Init(config.GetLogFile(), config.GetLogOut(), config.GetLogLevel())
 }
 
+// initScraperCache initializes a new scraper cache and returns it.
 func initScraperCache() *scraper.Cache {
 	scraperConfig := scraper.GlobalConfig{
 		Path:      config.GetScrapersPath(),
 		UserAgent: config.GetScraperUserAgent(),
+		CDPPath:   config.GetScraperCDPPath(),
 	}
 	ret, err := scraper.NewCache(scraperConfig)
 
@@ -181,4 +183,10 @@ func (s *singleton) RefreshConfig() {
 
 		paths.EnsureJSONDirs()
 	}
+}
+
+// RefreshScraperCache refreshes the scraper cache. Call this when scraper
+// configuration changes.
+func (s *singleton) RefreshScraperCache() {
+	s.ScraperCache = initScraperCache()
 }

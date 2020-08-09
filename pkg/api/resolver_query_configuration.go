@@ -40,12 +40,15 @@ func makeConfigGeneralResult() *models.ConfigGeneralResult {
 	maxStreamingTranscodeSize := config.GetMaxStreamingTranscodeSize()
 
 	scraperUserAgent := config.GetScraperUserAgent()
+	scraperCDPPath := config.GetScraperCDPPath()
 
 	return &models.ConfigGeneralResult{
 		Stashes:                   config.GetStashPaths(),
 		DatabasePath:              config.GetDatabasePath(),
 		GeneratedPath:             config.GetGeneratedPath(),
 		CachePath:                 config.GetCachePath(),
+		CalculateMd5:              config.IsCalculateMD5(),
+		VideoFileNamingAlgorithm:  config.GetVideoFileNamingAlgorithm(),
 		PreviewSegments:           config.GetPreviewSegments(),
 		PreviewSegmentDuration:    config.GetPreviewSegmentDuration(),
 		PreviewExcludeStart:       config.GetPreviewExcludeStart(),
@@ -62,6 +65,7 @@ func makeConfigGeneralResult() *models.ConfigGeneralResult {
 		LogAccess:                 config.GetLogAccess(),
 		Excludes:                  config.GetExcludes(),
 		ScraperUserAgent:          &scraperUserAgent,
+		ScraperCDPPath:            &scraperCDPPath,
 	}
 }
 

@@ -9,15 +9,15 @@ import (
 )
 
 type GenerateSpriteTask struct {
-	Scene     models.Scene
-	Overwrite bool
+	Scene               models.Scene
+	Overwrite           bool
+	fileNamingAlgorithm models.HashAlgorithm
 }
 
 func (t *GenerateSpriteTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 	defer wg.Done()
 
-	videoChecksum := t.Scene.Checksum
-	if t.doesSpriteExist(videoChecksum) && !t.Overwrite {
+	if !t.Overwrite && !t.required() {
 		return
 	}
 
@@ -27,9 +27,11 @@ func (t *GenerateSpriteTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 		return
 	}
 
-	imagePath := instance.Paths.Scene.GetSpriteImageFilePath(videoChecksum)
-	vttPath := instance.Paths.Scene.GetSpriteVttFilePath(videoChecksum)
-	generator, err := NewSpriteGenerator(*videoFile, videoChecksum, imagePath, vttPath, 9, 9)
+	sceneHash := t.Scene.GetHash(t.fileNamingAlgorithm)
+	imagePath := instance.Paths.Scene.GetSpriteImageFilePath(sceneHash)
+	vttPath := instance.Paths.Scene.GetSpriteVttFilePath(sceneHash)
+	generator, err := NewSpriteGenerator(*videoFile, sceneHash, imagePath, vttPath, 9, 9)
+
 	if err != nil {
 		logger.Errorf("error creating sprite generator: %s", err.Error())
 		return
@@ -42,7 +44,17 @@ func (t *GenerateSpriteTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 	}
 }
 
+// required returns true if the sprite needs to be generated
+func (t GenerateSpriteTask) required() bool {
+	sceneHash := t.Scene.GetHash(t.fileNamingAlgorithm)
+	return !t.doesSpriteExist(sceneHash)
+}
+
 func (t *GenerateSpriteTask) doesSpriteExist(sceneChecksum string) bool {
+	if sceneChecksum == "" {
+		return false
+	}
+
 	imageExists, _ := utils.FileExists(instance.Paths.Scene.GetSpriteImageFilePath(sceneChecksum))
 	vttExists, _ := utils.FileExists(instance.Paths.Scene.GetSpriteVttFilePath(sceneChecksum))
 	return imageExists && vttExists

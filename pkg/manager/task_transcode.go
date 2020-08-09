@@ -10,14 +10,15 @@ import (
 )
 
 type GenerateTranscodeTask struct {
-	Scene     models.Scene
-	Overwrite bool
+	Scene               models.Scene
+	Overwrite           bool
+	fileNamingAlgorithm models.HashAlgorithm
 }
 
 func (t *GenerateTranscodeTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 	defer wg.Done()
 
-	hasTranscode, _ := HasTranscode(&t.Scene)
+	hasTranscode := HasTranscode(&t.Scene, t.fileNamingAlgorithm)
 	if !t.Overwrite && hasTranscode {
 		return
 	}
@@ -26,7 +27,6 @@ func (t *GenerateTranscodeTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 
 	if t.Scene.Format.Valid {
 		container = ffmpeg.Container(t.Scene.Format.String)
-
 	} else { // container isn't in the DB
 		// shouldn't happen unless user hasn't scanned after updating to PR#384+ version
 		tmpVideoFile, err := ffmpeg.NewVideoFile(instance.FFProbePath, t.Scene.Path)
@@ -54,7 +54,8 @@ func (t *GenerateTranscodeTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 		return
 	}
 
-	outputPath := instance.Paths.Generated.GetTmpPath(t.Scene.Checksum + ".mp4")
+	sceneHash := t.Scene.GetHash(t.fileNamingAlgorithm)
+	outputPath := instance.Paths.Generated.GetTmpPath(sceneHash + ".mp4")
 	transcodeSize := config.GetMaxTranscodeSize()
 	options := ffmpeg.TranscodeOptions{
 		OutputPath:       outputPath,
@@ -77,12 +78,12 @@ func (t *GenerateTranscodeTask) Start(wg *sizedwaitgroup.SizedWaitGroup) {
 		}
 	}
 
-	if err := utils.SafeMove(outputPath, instance.Paths.Scene.GetTranscodePath(t.Scene.Checksum)); err != nil {
+	if err := utils.SafeMove(outputPath, instance.Paths.Scene.GetTranscodePath(sceneHash)); err != nil {
 		logger.Errorf("[transcode] error generating transcode: %s", err.Error())
 		return
 	}
 
-	logger.Debugf("[transcode] <%s> created transcode: %s", t.Scene.Checksum, outputPath)
+	logger.Debugf("[transcode] <%s> created transcode: %s", sceneHash, outputPath)
 	return
 }
 
@@ -106,7 +107,7 @@ func (t *GenerateTranscodeTask) isTranscodeNeeded() bool {
 		return false
 	}
 
-	hasTranscode, _ := HasTranscode(&t.Scene)
+	hasTranscode := HasTranscode(&t.Scene, t.fileNamingAlgorithm)
 	if !t.Overwrite && hasTranscode {
 		return false
 	}

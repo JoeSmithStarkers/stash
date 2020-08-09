@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -44,6 +45,21 @@ func (r *mutationResolver) ConfigureGeneral(ctx context.Context, input models.Co
 		}
 		config.Set(config.Cache, input.CachePath)
 	}
+
+	if !input.CalculateMd5 && input.VideoFileNamingAlgorithm == models.HashAlgorithmMd5 {
+		return makeConfigGeneralResult(), errors.New("calculateMD5 must be true if using MD5")
+	}
+
+	if input.VideoFileNamingAlgorithm != config.GetVideoFileNamingAlgorithm() {
+		// validate changing VideoFileNamingAlgorithm
+		if err := manager.ValidateVideoFileNamingAlgorithm(input.VideoFileNamingAlgorithm); err != nil {
+			return makeConfigGeneralResult(), err
+		}
+
+		config.Set(config.VideoFileNamingAlgorithm, input.VideoFileNamingAlgorithm)
+	}
+
+	config.Set(config.CalculateMD5, input.CalculateMd5)
 
 	if input.PreviewSegments != nil {
 		config.Set(config.PreviewSegments, *input.PreviewSegments)
@@ -103,8 +119,15 @@ func (r *mutationResolver) ConfigureGeneral(ctx context.Context, input models.Co
 		config.Set(config.Exclude, input.Excludes)
 	}
 
+	refreshScraperCache := false
 	if input.ScraperUserAgent != nil {
 		config.Set(config.ScraperUserAgent, input.ScraperUserAgent)
+		refreshScraperCache = true
+	}
+
+	if input.ScraperCDPPath != nil {
+		config.Set(config.ScraperCDPPath, input.ScraperCDPPath)
+		refreshScraperCache = true
 	}
 
 	if err := config.Write(); err != nil {
@@ -112,6 +135,9 @@ func (r *mutationResolver) ConfigureGeneral(ctx context.Context, input models.Co
 	}
 
 	manager.GetInstance().RefreshConfig()
+	if refreshScraperCache {
+		manager.GetInstance().RefreshScraperCache()
+	}
 
 	return makeConfigGeneralResult(), nil
 }

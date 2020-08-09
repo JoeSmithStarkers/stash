@@ -27,6 +27,14 @@ const Database = "database"
 
 const Exclude = "exclude"
 
+// CalculateMD5 is the config key used to determine if MD5 should be calculated
+// for video files.
+const CalculateMD5 = "calculate_md5"
+
+// VideoFileNamingAlgorithm is the config key used to determine what hash
+// should be used when generating and using generated files for scenes.
+const VideoFileNamingAlgorithm = "video_file_naming_algorithm"
+
 const PreviewPreset = "preview_preset"
 
 const MaxTranscodeSize = "max_transcode_size"
@@ -57,6 +65,7 @@ const SessionStoreKey = "session_store_key"
 // scraping options
 const ScrapersPath = "scrapers_path"
 const ScraperUserAgent = "scraper_user_agent"
+const ScraperCDPPath = "scraper_cdp_path"
 
 // i18n
 const Language = "language"
@@ -150,12 +159,37 @@ func GetLanguage() string {
 	return ret
 }
 
+// IsCalculateMD5 returns true if MD5 checksums should be generated for
+// scene video files.
+func IsCalculateMD5() bool {
+	return viper.GetBool(CalculateMD5)
+}
+
+// GetVideoFileNamingAlgorithm returns what hash algorithm should be used for
+// naming generated scene video files.
+func GetVideoFileNamingAlgorithm() models.HashAlgorithm {
+	ret := viper.GetString(VideoFileNamingAlgorithm)
+
+	// default to oshash
+	if ret == "" {
+		return models.HashAlgorithmOshash
+	}
+
+	return models.HashAlgorithm(ret)
+}
+
 func GetScrapersPath() string {
 	return viper.GetString(ScrapersPath)
 }
 
 func GetScraperUserAgent() string {
 	return viper.GetString(ScraperUserAgent)
+}
+
+// GetScraperCDPPath gets the path to the Chrome executable or remote address
+// to an instance of Chrome.
+func GetScraperCDPPath() string {
+	return viper.GetString(ScraperCDPPath)
 }
 
 func GetHost() string {
