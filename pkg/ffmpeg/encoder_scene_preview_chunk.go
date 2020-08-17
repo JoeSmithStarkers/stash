@@ -15,24 +15,32 @@ type ScenePreviewChunkOptions struct {
 }
 
 func (e *Encoder) ScenePreviewVideoChunk(probeResult VideoFile, options ScenePreviewChunkOptions, preset string, fallback bool) error {
+	var fastSeek float64
+	var slowSeek float64
 	fallbackMinSlowSeek := 20.0
-	fastSeek := options.StartTime
-	slowSeek := 0.0
 
 	args := []string{
 		"-v", "error",
 	}
 
-	// Not fallback: enable xerror
+	// Non-fallback: enable xerror.
+	// "-xerror" causes ffmpeg to fail on warnings, often the preview is fine but could be broken.
 	if !fallback {
 		args = append(args, "-xerror")
+		fastSeek = options.StartTime
+		slowSeek = 0
 	} else {
-		// Fallback try a combination of fast/slow seek instead of only fastseek
-		if fastSeek > fallbackMinSlowSeek {
-			fastSeek = fastSeek - fallbackMinSlowSeek
+		// In fallback mode, disable "-xerror" and try a combination of fast/slow seek instead of just fastseek
+		// Commonly with avi/wmv ffmpeg doesn't seem to always predict the right start point to begin decoding when
+		// using fast seek. If you force ffmpeg to decode more, it avoids the "blocky green artifact" issue.
+		if options.StartTime > fallbackMinSlowSeek {
+			// Handle seeks longer than fallbackMinSlowSeek with fast/slow seeks
+			// Allow for at least fallbackMinSlowSeek seconds of slow seek
+			fastSeek = options.StartTime - fallbackMinSlowSeek
 			slowSeek = fallbackMinSlowSeek
 		} else {
-			slowSeek = fastSeek
+			// Handle seeks shorter than fallbackMinSlowSeek with only slow seeks.
+			slowSeek = options.StartTime
 			fastSeek = 0
 		}
 	}

@@ -21,8 +21,6 @@ func (e *Encoder) Screenshot(probeResult VideoFile, options ScreenshotOptions) e
 		"-v", options.Verbosity,
 		"-ss", fmt.Sprintf("%v", options.Time),
 		"-y",
-		// TODO: Wrap in quotes?, not required on linux/darwin. quotes are a shell level argument escape separator.
-		// Don't know about windows.
 		"-i", probeResult.Path,
 		"-vframes", "1",
 		"-q:v", fmt.Sprintf("%v", options.Quality),

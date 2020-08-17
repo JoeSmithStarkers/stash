@@ -19,6 +19,8 @@ const markup = `
 *  Add support for parent/child studios.
 
 ### 🎨 Improvements
+*  Make preview generation more fault-tolerant.
+*  Allow clearing of images and querying on missing images.
 *  Allow free-editing of scene movie number.
 *  Allow adding performers and studios from selectors.
 *  Add support for chrome dp in xpath scrapers.
