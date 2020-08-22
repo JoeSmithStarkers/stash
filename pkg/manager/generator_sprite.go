@@ -123,15 +123,15 @@ func (g *SpriteGenerator) generateSpriteVTT(encoder *ffmpeg.Encoder) error {
 	}
 	logger.Infof("[generator] generating sprite vtt for %s", g.Info.VideoFile.Path)
 
-	file, err := os.Open(g.ImageOutputPath)
+	spriteImage, err := os.Open(g.ImageOutputPath)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer spriteImage.Close()
 	spriteImageName := filepath.Base(g.ImageOutputPath)
-	image, _, err := image.DecodeConfig(file)
+	image, _, err := image.DecodeConfig(spriteImage)
 	width := image.Width / g.Columns
-	height := image.Height  / g.Rows
+	height := image.Height / g.Rows
 
 	stepSize := float64(g.Info.NthFrame) / g.Info.FrameRate
 

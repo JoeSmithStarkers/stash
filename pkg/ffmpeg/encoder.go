@@ -130,7 +130,7 @@ func (e *Encoder) run(probeResult VideoFile, args []string) (string, error) {
 			if time > 0 && probeResult.Duration > 0 {
 				progress := time / probeResult.Duration
 
-				if  progress > lastProgress+0.01 {
+				if progress > lastProgress+0.01 {
 					logger.Infof("Progress %.2f", progress)
 					lastProgress = progress
 				}

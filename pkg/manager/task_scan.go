@@ -84,6 +84,11 @@ func (t *ScanTask) scanGallery() {
 		return
 	}
 
+	// Ignore directories.
+	if isDir, _ := utils.DirExists(t.FilePath); isDir {
+		return
+	}
+
 	ok, err := utils.IsZipFileUncompressed(t.FilePath)
 	if err == nil && !ok {
 		logger.Warnf("%s is using above store (0) level compression.", t.FilePath)
@@ -137,8 +142,9 @@ func (t *ScanTask) associateGallery(wg *sizedwaitgroup.SizedWaitGroup) {
 	qb := models.NewGalleryQueryBuilder()
 	gallery, _ := qb.FindByPath(t.FilePath)
 	if gallery == nil {
-		// shouldn't happen , associate is run after scan is finished
-		logger.Errorf("associate: gallery %s not found in DB", t.FilePath)
+		// associate is run after scan is finished
+		// should only happen if gallery is a directory or an io error occurs during hashing
+		logger.Warnf("associate: gallery %s not found in DB", t.FilePath)
 		wg.Done()
 		return
 	}
@@ -265,6 +271,11 @@ func (t *ScanTask) scanScene() *models.Scene {
 			}
 		}
 
+		return nil
+	}
+
+	// Ignore directories.
+	if isDir, _ := utils.DirExists(t.FilePath); isDir {
 		return nil
 	}
 

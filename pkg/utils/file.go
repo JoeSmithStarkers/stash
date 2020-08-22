@@ -161,7 +161,7 @@ func SafeMove(src, dst string) error {
 			return err
 		}
 
-		err = os.Remove(src);
+		err = os.Remove(src)
 		if err != nil {
 			return err
 		}
