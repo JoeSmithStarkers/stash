@@ -101,13 +101,7 @@ func (s *singleton) Scan(useFileMetadata bool) {
 		for _, path := range config.GetStashPaths() {
 			globPath := filepath.Join(path, "**/*."+constructGlob())
 			globResults, _ := doublestar.Glob(globPath)
-
-			for _, globCheck := range globResults {
-				// Remove results that are directories (directories with extensions...)
-				if isDir, _ := utils.DirExists(globCheck) ; !isDir {
-					results = append(results, globCheck)
-				}
-			}
+			results = append(results, globResults...)
 		}
 
 		if s.Status.stopping {
