@@ -2,7 +2,7 @@ package manager
 
 import (
 	"fmt"
-	"github.com/stashapp/stash/pkg/utils"
+	"errors"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -14,6 +14,7 @@ import (
 	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/manager/config"
 	"github.com/stashapp/stash/pkg/models"
+	"github.com/stashapp/stash/pkg/utils"
 )
 
 var extensionsToScan = []string{"zip", "cbz", "m4v", "mp4", "mov", "wmv", "avi", "mpg", "mpeg", "rmvb", "rm", "flv", "asf", "mkv", "webm"}
@@ -178,10 +179,30 @@ func (s *singleton) Export() {
 
 		var wg sync.WaitGroup
 		wg.Add(1)
-		task := ExportTask{fileNamingAlgorithm: config.GetVideoFileNamingAlgorithm()}
+		task := ExportTask{full: true, fileNamingAlgorithm: config.GetVideoFileNamingAlgorithm()}
 		go task.Start(&wg)
 		wg.Wait()
 	}()
+}
+
+func (s *singleton) RunSingleTask(t Task) (*sync.WaitGroup, error) {
+	if s.Status.Status != Idle {
+		return nil, errors.New("task already running")
+	}
+
+	s.Status.SetStatus(t.GetStatus())
+	s.Status.indefiniteProgress()
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer s.returnToIdleState()
+
+		go t.Start(&wg)
+		wg.Wait()
+	}()
+
+	return &wg, nil
 }
 
 func setGeneratePreviewOptionsInput(optionsInput *models.GeneratePreviewOptionsInput) {

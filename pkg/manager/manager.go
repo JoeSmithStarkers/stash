@@ -18,7 +18,6 @@ import (
 type singleton struct {
 	Status TaskStatus
 	Paths  *paths.Paths
-	JSON   *jsonUtils
 
 	FFMPEGPath  string
 	FFProbePath string
@@ -26,6 +25,8 @@ type singleton struct {
 
 	PluginCache  *plugin.Cache
 	ScraperCache *scraper.Cache
+
+	DownloadStore *DownloadStore
 }
 
 var instance *singleton
@@ -52,13 +53,18 @@ func Initialize() *singleton {
 		instance = &singleton{
 			Status: TaskStatus{Status: Idle, Progress: -1},
 			Paths:  paths.NewPaths(),
-			JSON:   &jsonUtils{},
 
 			PluginCache:  initPluginCache(),
 			ScraperCache: initScraperCache(),
+
+			DownloadStore: NewDownloadStore(),
 		}
 
 		instance.RefreshConfig()
+
+		// clear the downloads and tmp directories
+		utils.EmptyDir(instance.Paths.Generated.Downloads)
+		utils.EmptyDir(instance.Paths.Generated.Tmp)
 
 		initFFMPEG()
 	})
@@ -190,12 +196,12 @@ func initScraperCache() *scraper.Cache {
 func (s *singleton) RefreshConfig() {
 	s.Paths = paths.NewPaths()
 	if config.IsValid() {
-		_ = utils.EnsureDir(s.Paths.Generated.Screenshots)
-		_ = utils.EnsureDir(s.Paths.Generated.Vtt)
-		_ = utils.EnsureDir(s.Paths.Generated.Markers)
-		_ = utils.EnsureDir(s.Paths.Generated.Transcodes)
-
-		paths.EnsureJSONDirs()
+		utils.EnsureDir(s.Paths.Generated.Screenshots)
+		utils.EnsureDir(s.Paths.Generated.Vtt)
+		utils.EnsureDir(s.Paths.Generated.Markers)
+		utils.EnsureDir(s.Paths.Generated.Transcodes)
+		utils.EnsureDir(s.Paths.Generated.Downloads)
+		paths.EnsureJSONDirs(config.GetMetadataPath())
 	}
 }
 
