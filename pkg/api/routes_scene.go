@@ -1,12 +1,17 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"image"
+	"image/jpeg"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi"
+	"github.com/nfnt/resize"
 	"github.com/stashapp/stash/pkg/ffmpeg"
 	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/manager"
@@ -174,10 +179,45 @@ func (rs sceneRoutes) Screenshot(w http.ResponseWriter, r *http.Request) {
 	scene := r.Context().Value(sceneKey).(*models.Scene)
 	filepath := manager.GetInstance().Paths.Scene.GetScreenshotPath(scene.GetHash(config.GetVideoFileNamingAlgorithm()))
 
+	r.ParseForm()
+	requestedWidth := r.Form.Get("width")
+
 	// fall back to the scene image blob if the file isn't present
 	screenshotExists, _ := utils.FileExists(filepath)
 	if screenshotExists {
-		http.ServeFile(w, r, filepath)
+
+		if requestedWidth != "" {
+			requestedWidthInt, err := strconv.Atoi(requestedWidth)
+			// handle this error.
+
+			imageFile, err := os.Open(filepath)
+			if err != nil {
+				logger.Errorf("[screenshot] error opening file: %s", err.Error())
+				return
+			}
+			defer imageFile.Close()
+			imageConfig, _, err := image.DecodeConfig(imageFile)
+
+			if imageConfig.Width <= requestedWidthInt {
+				http.ServeFile(w, r, filepath)
+				return
+			}
+
+			// reset file after DecodeConfig
+			imageFile.Seek(0, 0)
+			imageData, _, err := image.Decode(imageFile)
+			// handle this error
+
+			newImage := resize.Resize(uint(requestedWidthInt), 0, imageData, resize.Bicubic)
+
+			// Encode uses a Writer, use a Buffer if you need the raw []byte
+			newImageBuf := new(bytes.Buffer)
+			err = jpeg.Encode(newImageBuf, newImage, nil)
+
+			utils.ServeImage(newImageBuf.Bytes(), w, r)
+		} else {
+			http.ServeFile(w, r, filepath)
+		}
 	} else {
 		qb := models.NewSceneQueryBuilder()
 		cover, _ := qb.GetSceneCover(scene.ID, nil)

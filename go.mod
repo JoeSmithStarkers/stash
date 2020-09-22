@@ -20,6 +20,7 @@ require (
 	github.com/json-iterator/go v1.1.9
 	github.com/mattn/go-sqlite3 v1.13.0
 	github.com/natefinch/pie v0.0.0-20170715172608-9a0d72014007
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/rs/cors v1.6.0
 	github.com/shurcooL/graphql v0.0.0-20181231061246-d48a9a75455f
 	github.com/sirupsen/logrus v1.4.2
@@ -27,6 +28,7 @@ require (
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.5.1
 	github.com/tidwall/gjson v1.6.0
+	github.com/vektah/gqlparser v1.3.1
 	github.com/vektah/gqlparser/v2 v2.0.1
 	github.com/vektra/mockery/v2 v2.2.1
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9

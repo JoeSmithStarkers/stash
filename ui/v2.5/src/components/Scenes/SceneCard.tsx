@@ -45,7 +45,11 @@ const ScenePreview: React.FC<IScenePreviewProps> = ({
 
   return (
     <div className={cx("scene-card-preview", { portrait: isPortrait })}>
-      <img className="scene-card-preview-image" src={image} alt="" />
+      <img
+        className="scene-card-preview-image"
+        src={`${image}&width=640`}
+        alt=""
+      />
       <video
         className="scene-card-preview-video"
         loop
